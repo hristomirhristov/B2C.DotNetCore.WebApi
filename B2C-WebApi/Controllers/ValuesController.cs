@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace B2CWebApi.Controllers
 {
     [Authorize]
-    [Route("api/[controller]")]
+    [Route("coreapi/[controller]")]
     public class ValuesController : Controller
     {
         // GET: api/values

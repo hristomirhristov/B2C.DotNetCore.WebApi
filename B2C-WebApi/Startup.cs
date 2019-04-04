@@ -1,8 +1,11 @@
-﻿using System.Text;
+﻿using System.Collections.Generic;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Cors.Internal;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -36,18 +39,42 @@ namespace B2CWebApi
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-              services.AddAuthentication(options =>
-              {
+            // Add Cors
+            services.AddCors(o => o.AddPolicy("MyPolicy", builder =>
+            {
+                builder.AllowAnyOrigin()
+                       .AllowAnyMethod()
+                       .AllowAnyHeader();
+            }));
+
+            // Add framework services.
+            services.AddMvc();
+            services.Configure<MvcOptions>(options =>
+            {
+                options.Filters.Add(new CorsAuthorizationFilterFactory("MyPolicy"));
+            });
+
+            services.AddAuthentication(options =>
+            {
                 options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-              })
+            })
                 .AddJwtBearer(jwtOptions =>
                 {
-                  jwtOptions.Authority = $"https://login.microsoftonline.com/tfp/{Configuration["AzureAdB2C:Tenant"]}/{Configuration["AzureAdB2C:Policy"]}/v2.0/";
-                  jwtOptions.Audience = Configuration["AzureAdB2C:ClientId"];
-                  jwtOptions.Events = new JwtBearerEvents
-                  {
-                    OnAuthenticationFailed = AuthenticationFailed
-                  };
+                    jwtOptions.Authority = $"https://login.microsoftonline.com/tfp/{Configuration["AzureAdB2C:Tenant"]}/{Configuration["AzureAdB2C:Policy"]}/v2.0/";
+                    jwtOptions.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidAudiences = new List<string>
+                        {
+                            // Extends MS template. Supports multiple audiences!
+                            Configuration["AzureAdB2C:ChainApiClientId"],
+                            Configuration["AzureAdB2C:CoreApiClientId"]
+                        }
+                    };
+                    jwtOptions.Events = new JwtBearerEvents
+                    {
+                        OnAuthenticationFailed = AuthenticationFailed
+                    };
                 });
 
             // Add framework services.
@@ -64,6 +91,9 @@ namespace B2CWebApi
             ScopeWrite = Configuration["AzureAdB2C:ScopeWrite"];
 
             app.UseAuthentication();
+
+            //Enable Cors
+            app.UseCors("MyPolicy");
 
             app.UseMvc(routes =>
             {
